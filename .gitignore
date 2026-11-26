@@ -1,0 +1,6 @@
+node_modules/
+pwa/dist/
+daemon/target/
+installer/Output/
+*.part
+.DS_Store
