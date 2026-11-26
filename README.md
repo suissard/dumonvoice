@@ -72,6 +72,31 @@ cd pwa && npm test                     # client WS (ACK, backoff, heartbeat, ré
 cd daemon && cargo test                # FSM, idempotence, watchdog, auth/appairage, PKI, config, raccourcis, injection…
 ```
 
+Tests sur modèles réels (ignorés par défaut) : Silero VAD, OpenWakeWord et Whisper sur de la parole réelle.
+
+```bash
+DV_MODELS_DIR=<dossier models> DV_SPEECH_WAV=parole.wav DV_WAKE_WAV=hey_jarvis.wav \
+  cargo test --release -- --include-ignored
+```
+
+Test de bout en bout du daemon (local + HTTPS LAN + WebSocket : appairage, texte direct, idempotence,
+BUSY, dictée audio streamée transcrite, watchdog, révocation) :
+
+```bash
+DUMONVOICE_HOME=/tmp/dv ./target/release/dumonvoice --background &
+NODE_EXTRA_CA_CERTS=/tmp/dv/certs/ca.crt node tests/e2e/e2e.mjs /tmp/dv parole.wav
+```
+
+### État des vérifications
+
+| Vérification | Résultat |
+| :--- | :--- |
+| PWA : `svelte-check`, 13 tests vitest, build | ✔ (≈ 55 Ko gzip) |
+| Daemon Linux, toutes features : 69 tests dont modèles réels | ✔ Silero : 2,0 s de parole détectée sur 2,6 s ; « hey jarvis » : score 0,996 ; Whisper tiny : « Bonjour, … » en ~0,4 s |
+| Binaire réel piloté de bout en bout (23 contrôles) | ✔ dictée mobile streamée → transcription → injection en ~340 ms |
+| Compilation croisée Windows (`x86_64-pc-windows-gnu`, sans moteurs natifs) | ✔ 0 erreur, 0 avertissement (hook, injecteur, overlay, tray, COM audio) |
+| Exécution réelle sous Windows (MSVC + Whisper + ONNX, injection, overlay, tray) | ⏳ non testée : à valider via la CI `windows-latest` ou sur un PC |
+
 ## Utilisation
 
 1. Installez puis lancez DumonVoice : l'assistant s'ouvre dans le navigateur (micro, moteur, essai).

@@ -6,6 +6,7 @@
   import Segmented from '../../components/Segmented.svelte';
   import QrPairing from '../../components/QrPairing.svelte';
   import ProgressBar from '../../components/ProgressBar.svelte';
+  import { keyLabel } from '../../lib/keys';
 
   let s = $derived(store.status!);
   let c = $derived(store.config!);
@@ -15,22 +16,7 @@
   let devices = $state<PairedDevice[]>([]);
   let importName = $state('');
 
-  const KEY_LABEL: Record<string, string> = {
-    ControlLeft: 'Ctrl',
-    ControlRight: 'Ctrl droit',
-    ShiftLeft: 'Maj',
-    ShiftRight: 'Maj droite',
-    AltLeft: 'Alt',
-    AltRight: 'AltGr',
-    MetaLeft: 'Win',
-    MetaRight: 'Win droit',
-    Space: 'Espace',
-    ScrollLock: 'Verr. Défil',
-    Mouse4: 'Souris 4',
-    Mouse5: 'Souris 5',
-    MouseMiddle: 'Clic molette',
-  };
-  const keyLabel = (k: string) => KEY_LABEL[k] ?? k.replace(/^Key/, '').replace(/^Digit/, '');
+
 
   async function startCapture() {
     capturing = true;

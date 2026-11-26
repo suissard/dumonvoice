@@ -6,15 +6,17 @@
 //! silencieusement le flux sur le nouveau périphérique (équivalent fonctionnel de
 //! `IMMNotificationClient`). Une commande `Restart` est aussi envoyée à la sortie de veille.
 
+#[cfg(windows)]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(windows)]
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::Sample;
 use parking_lot::Mutex;
 
+#[cfg(windows)]
 use super::{f32_to_i16, StreamResampler, SAMPLE_RATE};
 
 /// Destination des échantillons capturés (16 kHz mono S16).
@@ -61,12 +63,14 @@ impl CaptureHandle {
     }
 }
 
+#[cfg(windows)]
 fn list_input_devices(host: &cpal::Host) -> Vec<String> {
     host.input_devices()
         .map(|it| it.filter_map(|d| d.name().ok()).collect())
         .unwrap_or_default()
 }
 
+#[cfg(windows)]
 fn pick_device(host: &cpal::Host, wanted: &str) -> Option<cpal::Device> {
     if wanted != "default" && !wanted.is_empty() {
         if let Ok(mut it) = host.input_devices() {
@@ -79,6 +83,7 @@ fn pick_device(host: &cpal::Host, wanted: &str) -> Option<cpal::Device> {
     host.default_input_device()
 }
 
+#[cfg(windows)]
 fn build_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
@@ -121,6 +126,7 @@ where
     )
 }
 
+#[cfg(windows)]
 fn open(
     host: &cpal::Host,
     wanted: &str,
@@ -171,6 +177,7 @@ fn open(
 }
 
 /// Démarre le thread de capture.
+#[cfg(windows)]
 pub fn spawn(sink: Arc<dyn AudioSink>, device: String, active: bool) -> CaptureHandle {
     let (tx, rx) = mpsc::channel::<CaptureCmd>();
     let current = Arc::new(Mutex::new(None));
@@ -226,4 +233,26 @@ pub fn spawn(sink: Arc<dyn AudioSink>, device: String, active: bool) -> CaptureH
         })
         .expect("thread audio");
     CaptureHandle { tx, current }
+}
+
+/// Hors Windows (développement / tests) : pas de capture micro PC.
+#[cfg(not(windows))]
+pub fn spawn(_sink: Arc<dyn AudioSink>, _device: String, _active: bool) -> CaptureHandle {
+    tracing::info!("Capture micro PC désactivée hors Windows");
+    let (tx, rx) = mpsc::channel::<CaptureCmd>();
+    std::thread::spawn(move || {
+        while let Ok(cmd) = rx.recv() {
+            match cmd {
+                CaptureCmd::ListDevices(reply) => {
+                    let _ = reply.send(Vec::new());
+                }
+                CaptureCmd::Shutdown => break,
+                _ => {}
+            }
+        }
+    });
+    CaptureHandle {
+        tx,
+        current: Arc::new(Mutex::new(None)),
+    }
 }

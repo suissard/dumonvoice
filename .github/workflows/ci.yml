@@ -28,7 +28,7 @@ jobs:
           path: pwa/dist
 
   daemon-linux:
-    # Logique multiplateforme (FSM, protocole, PKI, auth…) sans les moteurs natifs.
+    # Logique multiplateforme (FSM, protocole, PKI, auth, ONNX…) ; la capture micro est propre à Windows.
     needs: pwa
     runs-on: ubuntu-latest
     steps:
@@ -37,12 +37,11 @@ jobs:
         with:
           name: pwa-dist
           path: pwa/dist
-      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: daemon
-      - run: cargo test --no-default-features
+      - run: cargo test --no-default-features --features onnx
         working-directory: daemon
 
   daemon-windows:

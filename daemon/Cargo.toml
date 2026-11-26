@@ -53,11 +53,11 @@ if-addrs = "0.13"
 gethostname = "0.5"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 parking_lot = "0.12"
-cpal = "0.15"
 whisper-rs = { version = "0.13", optional = true }
-ort = { version = "=2.0.0-rc.9", optional = true }
+ort = { version = "=2.0.0-rc.15", optional = true, default-features = false, features = ["std", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-31"] }
 
 [target.'cfg(windows)'.dependencies]
+cpal = "0.15"
 tray-icon = "0.19"
 winreg = "0.52"
 windows = { version = "=0.58.0", features = [

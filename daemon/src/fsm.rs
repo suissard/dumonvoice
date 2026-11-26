@@ -2,7 +2,7 @@
 //! watchdog de flux audio distant, mini-historique (section 6.1 du cahier des charges).
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -82,7 +82,7 @@ pub struct Orchestrator {
     history: Mutex<VecDeque<HistoryEntry>>,
     last_level: Mutex<Instant>,
     wake_tx: Mutex<Option<std::sync::mpsc::SyncSender<Vec<i16>>>>,
-    desktop_clients: AtomicU64,
+    desktop_clients: AtomicI64,
     level: std::sync::atomic::AtomicU32,
     rt: tokio::runtime::Handle,
     pub pc_name: String,
@@ -131,7 +131,7 @@ impl Orchestrator {
             history: Mutex::new(VecDeque::new()),
             last_level: Mutex::new(Instant::now()),
             wake_tx: Mutex::new(None),
-            desktop_clients: AtomicU64::new(0),
+            desktop_clients: AtomicI64::new(0),
             level: std::sync::atomic::AtomicU32::new(0),
             rt: tokio::runtime::Handle::current(),
             pc_name,
@@ -160,13 +160,7 @@ impl Orchestrator {
     }
 
     pub fn desktop_client_connected(&self, delta: i64) {
-        if delta > 0 {
-            self.desktop_clients.fetch_add(1, Ordering::SeqCst);
-        } else {
-            let _ = self
-                .desktop_clients
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| Some(v.saturating_sub(1)));
-        }
+        self.desktop_clients.fetch_add(delta.signum(), Ordering::SeqCst);
     }
 
     fn emit(&self, e: ServerEvent) {

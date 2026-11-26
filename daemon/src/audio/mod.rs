@@ -2,6 +2,8 @@
 //! rééchantillonnage linéaire, encodage WAV en mémoire.
 
 pub mod capture;
+#[cfg(feature = "onnx")]
+pub mod onnx;
 pub mod vad;
 pub mod wake_word;
 
@@ -213,6 +215,34 @@ pub fn downmix(data: &[f32], channels: usize) -> Vec<f32> {
         .collect()
 }
 
+/// Lit un WAV PCM 16 bits (mono ou multi-canal) et le convertit en 16 kHz mono.
+pub fn read_wav_16k(bytes: &[u8]) -> Option<Vec<i16>> {
+    if bytes.len() < 12 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
+        return None;
+    }
+    let (mut pos, mut rate, mut channels, mut bits) = (12usize, 0u32, 1usize, 16u16);
+    while pos + 8 <= bytes.len() {
+        let id = &bytes[pos..pos + 4];
+        let len = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().ok()?) as usize;
+        let body = pos + 8;
+        if id == b"fmt " && body + 16 <= bytes.len() {
+            channels = u16::from_le_bytes([bytes[body + 2], bytes[body + 3]]).max(1) as usize;
+            rate = u32::from_le_bytes(bytes[body + 4..body + 8].try_into().ok()?);
+            bits = u16::from_le_bytes([bytes[body + 14], bytes[body + 15]]);
+        } else if id == b"data" {
+            if bits != 16 || rate == 0 {
+                return None;
+            }
+            let end = (body + len).min(bytes.len());
+            let samples: Vec<f32> = decode_s16le(&bytes[body..end]).into_iter().map(i16_to_f32).collect();
+            let mono = downmix(&samples, channels);
+            return Some(resample_linear(&mono, rate, SAMPLE_RATE).into_iter().map(f32_to_i16).collect());
+        }
+        pos = body + len + (len & 1);
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,6 +295,14 @@ mod tests {
         assert_eq!(decode_s16le(&[0x01, 0x00, 0xFF, 0xFF]), vec![1, -1]);
         assert!(rms_i16(&[0; 10]) == 0.0);
         assert!(rms_i16(&[16384; 10]) > 0.49);
+    }
+
+    #[test]
+    fn wav_roundtrip() {
+        let pcm: Vec<i16> = (0..1600).map(|i| (i % 100) as i16 * 100).collect();
+        let back = read_wav_16k(&encode_wav(&pcm, 16_000)).unwrap();
+        assert_eq!(back.len(), pcm.len());
+        assert!(back.iter().zip(&pcm).all(|(a, b)| (a - b).abs() <= 1));
     }
 
     #[test]

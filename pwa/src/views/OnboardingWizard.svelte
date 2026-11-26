@@ -5,6 +5,7 @@
   import Vumeter from '../components/Vumeter.svelte';
   import QrPairing from '../components/QrPairing.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
+  import { comboLabel } from '../lib/keys';
 
   let { ondone }: { ondone: () => void } = $props();
   let step = $state(1);
@@ -106,7 +107,7 @@
       <h2 class="text-lg font-semibold">3. Essai immédiat</h2>
       <p class="muted text-sm">
         Cliquez dans la zone, {c?.triggers.hotkey.mode === 'toggle' ? 'appuyez sur' : 'maintenez'}
-        <kbd class="rounded bg-slate-200 px-1.5 py-0.5 text-xs dark:bg-slate-800">{c?.triggers.hotkey.keys.join(' + ')}</kbd>
+        <kbd class="rounded bg-slate-200 px-1.5 py-0.5 text-xs dark:bg-slate-800">{comboLabel(c?.triggers.hotkey.keys ?? [])}</kbd>
         et parlez (ou envoyez un texte depuis le téléphone).
       </p>
       {#if dl && !dl.done}

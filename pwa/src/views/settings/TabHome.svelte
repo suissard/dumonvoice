@@ -1,6 +1,7 @@
 <script lang="ts">
   import { store } from '../../lib/store.svelte';
   import Toggle from '../../components/Toggle.svelte';
+  import { comboLabel } from '../../lib/keys';
 
   let s = $derived(store.status!);
   let c = $derived(store.config!);
@@ -18,7 +19,7 @@
   let engineOk = $derived(
     s.engine.active === 'whisper' ? s.engine.whisper.available : s.engine.ollama.reachable,
   );
-  let hotkey = $derived(c.triggers.hotkey.keys.join(' + '));
+  let hotkey = $derived(comboLabel(c.triggers.hotkey.keys));
 </script>
 
 <div class="space-y-4">

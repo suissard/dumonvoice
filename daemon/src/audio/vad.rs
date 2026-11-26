@@ -5,6 +5,7 @@
 //! * `SilenceTracker` : arrêt automatique après `silence_timeout_ms` de silence.
 
 use std::path::Path;
+#[cfg(feature = "onnx")]
 use std::sync::Arc;
 
 /// Taille de trame Silero à 16 kHz (32 ms).
@@ -50,21 +51,20 @@ mod silero {
 
     use ort::session::Session;
     use ort::value::Tensor;
+    use parking_lot::Mutex;
 
     pub struct SileroState {
-        session: Arc<Session>,
+        session: Arc<Mutex<Session>>,
         state: Vec<f32>,
         context: Vec<f32>,
     }
 
-    pub fn load(path: &std::path::Path) -> Result<Session, ort::Error> {
-        Session::builder()?
-            .with_intra_threads(1)?
-            .commit_from_file(path)
+    pub fn load(path: &std::path::Path) -> Result<Session, String> {
+        crate::audio::onnx::load_session(path)
     }
 
     impl SileroState {
-        pub fn new(session: Arc<Session>) -> Self {
+        pub fn new(session: Arc<Mutex<Session>>) -> Self {
             Self {
                 session,
                 state: vec![0.0; 2 * 128],
@@ -86,12 +86,11 @@ mod silero {
             let x = Tensor::from_array(([1usize, n], input))?;
             let st = Tensor::from_array(([2usize, 1, 128], self.state.clone()))?;
             let sr = Tensor::from_array(([1usize], vec![16_000i64]))?;
-            let outputs = self
-                .session
-                .run(ort::inputs!["input" => x, "state" => st, "sr" => sr]?)?;
-            let (_, p) = outputs["output"].try_extract_raw_tensor::<f32>()?;
+            let mut session = self.session.lock();
+            let outputs = session.run(ort::inputs!["input" => x, "state" => st, "sr" => sr])?;
+            let (_, p) = outputs["output"].try_extract_tensor::<f32>()?;
             let prob = p.first().copied().unwrap_or(0.0);
-            let (_, ns) = outputs["stateN"].try_extract_raw_tensor::<f32>()?;
+            let (_, ns) = outputs["stateN"].try_extract_tensor::<f32>()?;
             if ns.len() == self.state.len() {
                 self.state.copy_from_slice(ns);
             }
@@ -104,7 +103,7 @@ mod silero {
 #[derive(Clone, Default)]
 pub struct VadModel {
     #[cfg(feature = "onnx")]
-    silero: Option<Arc<ort::session::Session>>,
+    silero: Option<Arc<parking_lot::Mutex<ort::session::Session>>>,
 }
 
 impl VadModel {
@@ -121,7 +120,7 @@ impl VadModel {
                     Ok(s) => {
                         tracing::info!("Silero VAD chargé");
                         return Self {
-                            silero: Some(Arc::new(s)),
+                            silero: Some(Arc::new(parking_lot::Mutex::new(s))),
                         };
                     }
                     Err(e) => tracing::warn!("Silero VAD indisponible ({e}), repli énergétique"),
@@ -164,6 +163,14 @@ impl Vad {
         if let Some(s) = self.silero.as_mut() {
             s.reset();
         }
+    }
+
+    /// Le modèle Silero est-il effectivement utilisé (pas de repli) ?
+    pub fn uses_silero(&self) -> bool {
+        #[cfg(feature = "onnx")]
+        return self.silero.is_some();
+        #[cfg(not(feature = "onnx"))]
+        false
     }
 
     /// Probabilité de parole d'une trame de `FRAME` échantillons.
@@ -277,6 +284,26 @@ mod tests {
         assert!(!t.feed(&tone(600, 0.3)));
         assert!(!t.feed(&vec![0i16; crate::audio::ms_to_samples(500)]));
         assert!(t.feed(&vec![0i16; crate::audio::ms_to_samples(400)]));
+    }
+
+    /// `DV_MODELS_DIR=… cargo test --features onnx -- --ignored`
+    #[test]
+    #[ignore]
+    fn silero_runs_on_real_model() {
+        let dir = std::path::PathBuf::from(std::env::var("DV_MODELS_DIR").expect("DV_MODELS_DIR"));
+        let model = VadModel::load(&dir);
+        assert_eq!(model.backend_name(), "silero");
+        let mut v = model.instance();
+        assert_eq!(v.speech_ms(&vec![0i16; 16_000]), 0);
+        let noise: Vec<i16> = (0..16_000).map(|i| (i * 7919 % 2000) as i16 - 1000).collect();
+        let _ = v.speech_ms(&noise);
+        assert!(v.uses_silero(), "Silero a échoué et s'est replié sur l'énergie");
+        if let Ok(wav) = std::env::var("DV_SPEECH_WAV") {
+            let pcm = crate::audio::read_wav_16k(&std::fs::read(wav).unwrap()).unwrap();
+            let ms = v.speech_ms(&pcm);
+            eprintln!("Silero : {ms} ms de parole sur {} ms", crate::audio::samples_to_ms(pcm.len()));
+            assert!(ms >= MIN_SPEECH_MS);
+        }
     }
 
     #[test]

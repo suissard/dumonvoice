@@ -169,3 +169,26 @@ impl TranscriptionEngine for WhisperEngine {
         self.transcribe_impl(pcm, lang, cfg).await
     }
 }
+
+#[cfg(all(test, feature = "whisper"))]
+mod tests {
+    use super::*;
+
+    /// `DV_MODELS_DIR=… DV_SPEECH_WAV=… cargo test --features whisper -- --ignored`
+    #[tokio::test]
+    #[ignore]
+    async fn transcribes_real_speech() {
+        let dir = PathBuf::from(std::env::var("DV_MODELS_DIR").expect("DV_MODELS_DIR"));
+        let wav = std::fs::read(std::env::var("DV_SPEECH_WAV").expect("DV_SPEECH_WAV")).unwrap();
+        let pcm = crate::audio::read_wav_16k(&wav).unwrap();
+        let mut cfg = Config::default();
+        cfg.engine.whisper.model_file = "ggml-tiny-q5_1.bin".into();
+        cfg.engine.whisper.use_gpu = false;
+        let eng = WhisperEngine::new(dir);
+        assert!(eng.is_available(&cfg));
+        let t0 = std::time::Instant::now();
+        let text = eng.transcribe(&pcm, "fr", &cfg).await.unwrap();
+        eprintln!("Whisper ({} ms) : {text}", t0.elapsed().as_millis());
+        assert!(text.to_lowercase().contains("bonjour"), "transcription inattendue : {text}");
+    }
+}

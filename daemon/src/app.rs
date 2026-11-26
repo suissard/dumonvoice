@@ -11,14 +11,19 @@ use tokio::sync::broadcast;
 
 use crate::audio::capture::{self, AudioSink, CaptureCmd};
 use crate::audio::vad::{self, VadModel};
+#[cfg(feature = "onnx")]
 use crate::audio::wake_word;
 use crate::config::{self, Config, ConfigStore, EngineKind};
 use crate::engines::EngineManager;
 use crate::fsm::Orchestrator;
 use crate::platform::Platform;
-use crate::protocol::{FsmState, ServerEvent};
+#[cfg(windows)]
+use crate::protocol::FsmState;
+use crate::protocol::ServerEvent;
 use crate::server::{self, auth::AuthState, tls::CertPaths, AppContext, AppControl, LanServer};
-use crate::{downloads, hotkey_keys, EventTx};
+use crate::downloads;
+#[cfg(windows)]
+use crate::hotkey_keys;
 
 pub struct App {
     pub ctx: Arc<AppContext>,
@@ -32,7 +37,7 @@ pub struct App {
 fn init_logging(app_dir: &std::path::Path) -> Option<tracing_appender::non_blocking::WorkerGuard> {
     use tracing_subscriber::prelude::*;
     let filter = tracing_subscriber::EnvFilter::try_from_env("DUMONVOICE_LOG")
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info,ort=warn"));
     let logs = app_dir.join("logs");
     let _ = std::fs::create_dir_all(&logs);
     let file = tracing_appender::rolling::daily(logs, "dumonvoice.log");

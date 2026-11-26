@@ -92,9 +92,7 @@ mod imp {
     }
 
     fn load(path: &Path) -> anyhow::Result<Session> {
-        Ok(Session::builder()?
-            .with_intra_threads(1)?
-            .commit_from_file(path)?)
+        crate::audio::onnx::load_session(path).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))
     }
 
     impl WakeWordDetector {
@@ -159,10 +157,10 @@ mod imp {
             let audio: Vec<f32> = self.raw.iter().copied().collect();
             let n = audio.len();
             let input = Tensor::from_array(([1usize, n], audio))?;
-            let mel_name = self.mel.inputs[0].name.clone();
-            let mel_out = self.mel.outputs[0].name.clone();
-            let out = self.mel.run(ort::inputs![mel_name.as_str() => input]?)?;
-            let (_, mel) = out[mel_out.as_str()].try_extract_raw_tensor::<f32>()?;
+            let mel_name = self.mel.inputs()[0].name().to_string();
+            let mel_out = self.mel.outputs()[0].name().to_string();
+            let out = self.mel.run(ort::inputs![mel_name.as_str() => input])?;
+            let (_, mel) = out[mel_out.as_str()].try_extract_tensor::<f32>()?;
             for frame in mel.chunks_exact(32) {
                 let mut f = [0f32; 32];
                 for (i, v) in frame.iter().enumerate() {
@@ -178,10 +176,10 @@ mod imp {
                 window.extend_from_slice(f);
             }
             let emb_in = Tensor::from_array(([1usize, 76, 32, 1], window))?;
-            let emb_name = self.emb.inputs[0].name.clone();
-            let emb_out = self.emb.outputs[0].name.clone();
-            let out = self.emb.run(ort::inputs![emb_name.as_str() => emb_in]?)?;
-            let (_, e) = out[emb_out.as_str()].try_extract_raw_tensor::<f32>()?;
+            let emb_name = self.emb.inputs()[0].name().to_string();
+            let emb_out = self.emb.outputs()[0].name().to_string();
+            let out = self.emb.run(ort::inputs![emb_name.as_str() => emb_in])?;
+            let (_, e) = out[emb_out.as_str()].try_extract_tensor::<f32>()?;
             self.embeddings.push_back(e.to_vec());
             while self.embeddings.len() > self.word_inputs {
                 self.embeddings.pop_front();
@@ -195,10 +193,10 @@ mod imp {
                 feats.extend_from_slice(e);
             }
             let w_in = Tensor::from_array(([1usize, self.word_inputs, dim], feats))?;
-            let w_name = self.word.inputs[0].name.clone();
-            let w_out = self.word.outputs[0].name.clone();
-            let out = self.word.run(ort::inputs![w_name.as_str() => w_in]?)?;
-            let (_, s) = out[w_out.as_str()].try_extract_raw_tensor::<f32>()?;
+            let w_name = self.word.inputs()[0].name().to_string();
+            let w_out = self.word.outputs()[0].name().to_string();
+            let out = self.word.run(ort::inputs![w_name.as_str() => w_in])?;
+            let (_, s) = out[w_out.as_str()].try_extract_tensor::<f32>()?;
             Ok(s.first().copied().unwrap_or(0.0))
         }
     }
@@ -220,6 +218,30 @@ pub fn required_files(models_dir: &Path, name: &str) -> Vec<(PathBuf, Option<Str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    #[ignore]
+    fn openwakeword_runs_on_real_models() {
+        let dir = std::path::PathBuf::from(std::env::var("DV_MODELS_DIR").expect("DV_MODELS_DIR"));
+        let mut det = WakeWordDetector::load(&dir, "hey_jarvis").unwrap();
+        let mut best = 0.0f32;
+        for _ in 0..50 {
+            best = best.max(det.feed(&vec![0i16; 1280]).unwrap());
+        }
+        assert!(best < 0.5, "faux positif sur du silence : {best}");
+        if let Ok(wav) = std::env::var("DV_WAKE_WAV") {
+            let mut pcm = vec![0i16; 16_000];
+            pcm.extend(crate::audio::read_wav_16k(&std::fs::read(wav).unwrap()).unwrap());
+            pcm.extend(vec![0i16; 16_000]);
+            let mut best = 0.0f32;
+            for c in pcm.chunks(1280) {
+                best = best.max(det.feed(c).unwrap());
+            }
+            eprintln!("Score « hey jarvis » : {best:.3}");
+            assert!(best >= threshold_from_sensitivity(0.65), "mot d'éveil non détecté ({best})");
+        }
+    }
 
     #[test]
     fn thresholds() {

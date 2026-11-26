@@ -158,17 +158,18 @@
           </button>
         {/if}
       </div>
+      <button class="btn-ghost h-9 w-9 p-0" aria-label="Réglages" onclick={() => (showSettings = true)}>⚙</button>
+    </header>
+    <div class="flex justify-center border-b border-slate-200 bg-white px-3 pb-2 dark:border-slate-800 dark:bg-slate-900">
       <Segmented
-        small
         value={mode}
         onchange={setMode}
         options={[
           { value: 'mic', label: '🎙️ Micro PC' },
-          { value: 'text', label: '⌨️ Clavier / Dictée' },
+          { value: 'text', label: '⌨️ Clavier / Dictée Tel' },
         ]}
       />
-      <button class="btn-ghost h-9 w-9 p-0" aria-label="Réglages" onclick={() => (showSettings = true)}>⚙</button>
-    </header>
+    </div>
 
     <main class="min-h-0 flex-1">
       {#if mode === 'mic'}
