@@ -609,11 +609,11 @@ impl App {
             view: Box::new(view),
             open_settings: Box::new(move || open_url(&c1.local_url(None))),
             show_qr: Box::new(move || open_url(&c2.local_url(Some("mobile")))),
-            set_enabled: Box::new(move |on| {
+            set_enabled: Box::new(move |on: bool| {
                 c3.cfg.update(|x| x.enabled = on);
                 let _ = c3.events.send(ServerEvent::ConfigChanged);
             }),
-            set_engine: Box::new(move |k| {
+            set_engine: Box::new(move |k: EngineKind| {
                 c4.cfg.update(|x| x.engine.active = k);
                 let _ = c4.events.send(ServerEvent::ConfigChanged);
             }),
