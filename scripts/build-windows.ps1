@@ -1,7 +1,7 @@
 ﻿# Build complet : PWA -> embarquée dans le daemon -> installeur.
 #
 # Avant de lancer quoi que ce soit, le script vérifie tous les prérequis logiciels :
-#   Node.js 20+ (npm), Rust (toolchain MSVC), Visual Studio Build Tools (C++), CMake,
+#   Node.js dernière LTS (npm), Rust (toolchain MSVC), Visual Studio Build Tools (C++), CMake,
 #   LLVM (libclang), Inno Setup 6 (sauf -NoInstaller), CUDA Toolkit (-Cuda), Vulkan SDK (-Vulkan).
 # Pour chaque élément manquant, il affiche le lien de téléchargement et propose de l'installer
 # automatiquement via winget.
@@ -89,16 +89,34 @@ function Find-MsvcTools {
   return $null
 }
 
+$NodeLtsFallback = 26   # dernière LTS connue (novembre 2026), utilisée hors ligne
+$script:NodeLtsMajor = $null
+function Get-NodeLtsMajor {
+  # Version majeure de la dernière LTS de Node.js, lue sur nodejs.org (une seule fois par exécution).
+  if ($script:NodeLtsMajor) { return $script:NodeLtsMajor }
+  $major = $NodeLtsFallback
+  try {
+    $index = Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' -TimeoutSec 5 -UseBasicParsing
+    $latest = $index | Where-Object { $_.lts } | Select-Object -First 1
+    if ($latest -and $latest.version -match '^v(\d+)\.') { $major = [Math]::Max([int]$Matches[1], $NodeLtsFallback) }
+  } catch {
+    Write-Host "  (nodejs.org injoignable : Node.js $NodeLtsFallback LTS exigé par défaut)" -ForegroundColor DarkGray
+  }
+  $script:NodeLtsMajor = $major
+  return $major
+}
+
 function Test-Prerequisites {
   # Renvoie la liste des prérequis avec leur état (Ok, Detail) et comment les obtenir.
   $list = @()
 
   $node = Get-ToolVersion 'node' @('--version') 'v(\d+\.\d+\.\d+)'
   $npm = Get-Command npm -ErrorAction SilentlyContinue
+  $lts = Get-NodeLtsMajor
   $list += [pscustomobject]@{
-    Name = 'Node.js 20+ (npm)'
-    Ok = [bool]($node -and $node.Major -ge 20 -and $npm)
-    Detail = if ($node) { "v$node" } else { 'introuvable' }
+    Name = "Node.js $lts LTS (npm)"
+    Ok = [bool]($node -and $node.Major -ge $lts -and $npm)
+    Detail = if (-not $node) { 'introuvable' } elseif ($node.Major -lt $lts) { "v$node (dernière LTS : $lts)" } else { "v$node" }
     Url = 'https://nodejs.org/fr/download'
     WingetId = 'OpenJS.NodeJS.LTS'; WingetArgs = @()
   }

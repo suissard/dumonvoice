@@ -43,7 +43,7 @@ scripts/         build-windows.ps1, firewall-rule.ps1
 
 ## Compiler
 
-Prérequis Windows : [Rust](https://rustup.rs) (toolchain MSVC), Node.js 20+, CMake, LLVM (`libclang`, pour
+Prérequis Windows : [Rust](https://rustup.rs) (toolchain MSVC), Node.js (dernière LTS, 26 actuellement), CMake, LLVM (`libclang`, pour
 `whisper-rs`), [Inno Setup 6](https://jrsoftware.org/isinfo.php) pour l'installeur.
 
 ```powershell
@@ -53,7 +53,7 @@ Prérequis Windows : [Rust](https://rustup.rs) (toolchain MSVC), Node.js 20+, CM
 .\scripts\build-windows.ps1 -InstallMissing  # installe sans question les prérequis manquants (winget)
 ```
 
-Avant toute compilation, le script vérifie Node.js 20+, Rust (toolchain MSVC), Visual Studio Build Tools (C++),
+Avant toute compilation, le script vérifie Node.js (dernière LTS, lue sur nodejs.org), Rust (toolchain MSVC), Visual Studio Build Tools (C++),
 CMake, LLVM (`libclang`), Inno Setup 6, et le CUDA Toolkit / Vulkan SDK si `-Cuda` / `-Vulkan`. Pour chaque
 élément manquant, il affiche le lien de téléchargement et propose de l'installer automatiquement via `winget`.
 
