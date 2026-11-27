@@ -47,9 +47,20 @@ Prérequis Windows : [Rust](https://rustup.rs) (toolchain MSVC), Node.js 20+, CM
 `whisper-rs`), [Inno Setup 6](https://jrsoftware.org/isinfo.php) pour l'installeur.
 
 ```powershell
-.\scripts\build-windows.ps1            # PWA + daemon + installeur
-.\scripts\build-windows.ps1 -Cuda      # avec accélération NVIDIA
+.\scripts\build-windows.ps1                  # vérifie les prérequis, puis PWA + daemon + installeur
+.\scripts\build-windows.ps1 -Cuda            # avec accélération NVIDIA
+.\scripts\build-windows.ps1 -CheckOnly       # vérifie seulement les prérequis
+.\scripts\build-windows.ps1 -InstallMissing  # installe sans question les prérequis manquants (winget)
 ```
+
+Avant toute compilation, le script vérifie Node.js 20+, Rust (toolchain MSVC), Visual Studio Build Tools (C++),
+CMake, LLVM (`libclang`), Inno Setup 6, et le CUDA Toolkit / Vulkan SDK si `-Cuda` / `-Vulkan`. Pour chaque
+élément manquant, il affiche le lien de téléchargement et propose de l'installer automatiquement via `winget`.
+
+L'installeur vérifie lui aussi ses prérequis d'exécution : Windows 10 1809+ et le
+[runtime Visual C++ 2015-2022 x64](https://aka.ms/vs/17/release/vc_redist.x64.exe), qu'il propose de télécharger
+et d'installer automatiquement s'il manque. Il signale aussi si [Ollama](https://ollama.com/download/windows)
+(optionnel) est absent.
 
 Étapes manuelles :
 
