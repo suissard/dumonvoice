@@ -26,14 +26,19 @@ $root = Split-Path -Parent $PSScriptRoot
 function Update-SessionPath {
   # Recharge le PATH depuis le registre (après une installation winget, sans rouvrir le terminal).
   # Les entrées déjà présentes dans la session sont conservées (venv, outils ajoutés à la main…).
+  # Les nouvelles entrées sont ajoutées EN FIN de PATH : la version active (nvm, setup-node…) reste prioritaire.
+  # Emplacements par défaut qui ne sont pas toujours ajoutés au PATH : idem, en dernier recours.
   $current = @($env:Path -split ';' | Where-Object { $_ })
+  $seen = @($current | ForEach-Object { $_.TrimEnd('\').ToLowerInvariant() })
+  $extra = @()
   foreach ($scope in 'Machine', 'User') {
     $value = [Environment]::GetEnvironmentVariable('Path', $scope)
-    if (-not $value) { continue }
-    foreach ($dir in ($value -split ';' | Where-Object { $_ })) {
-      $expanded = [Environment]::ExpandEnvironmentVariables($dir)
-      if ($current -notcontains $expanded) { $current += $expanded }
-    }
+    if ($value) { $extra += ($value -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_) }) }
+  }
+  $extra += @("$env:USERPROFILE\.cargo\bin", "$env:ProgramFiles\nodejs", "$env:ProgramFiles\CMake\bin") | Where-Object { Test-Path $_ }
+  foreach ($dir in $extra) {
+    $key = $dir.TrimEnd('\').ToLowerInvariant()
+    if ($seen -notcontains $key) { $current += $dir; $seen += $key }
   }
   $env:Path = $current -join ';'
   foreach ($name in 'CUDA_PATH', 'VULKAN_SDK', 'LIBCLANG_PATH') {
@@ -42,10 +47,6 @@ function Update-SessionPath {
       if (-not $v) { $v = [Environment]::GetEnvironmentVariable($name, 'User') }
       if ($v) { Set-Item "env:$name" $v }
     }
-  }
-  # Emplacements par défaut qui ne sont pas toujours ajoutés au PATH.
-  foreach ($dir in "$env:USERPROFILE\.cargo\bin", "$env:ProgramFiles\nodejs", "$env:ProgramFiles\CMake\bin") {
-    if ((Test-Path $dir) -and ($env:Path -split ';' -notcontains $dir)) { $env:Path = "$dir;$env:Path" }
   }
 }
 
